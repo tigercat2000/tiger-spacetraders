@@ -1,6 +1,6 @@
 use crossterm::event::KeyEvent;
 use std::sync::mpsc::{channel, Receiver, RecvError, Sender};
-use std::{thread, time::Duration};
+use std::time::Duration;
 
 #[derive(Debug, Clone, Copy)]
 pub enum InputEvent {
@@ -18,13 +18,15 @@ impl Events {
         let (tx, rx) = channel();
 
         let event_tx = tx.clone();
-        thread::spawn(move || loop {
-            if crossterm::event::poll(tick_rate).unwrap() {
-                if let crossterm::event::Event::Key(key) = crossterm::event::read().unwrap() {
-                    event_tx.send(InputEvent::Input(key)).unwrap();
+        tokio::spawn(async move {
+            loop {
+                if crossterm::event::poll(tick_rate).unwrap() {
+                    if let crossterm::event::Event::Key(key) = crossterm::event::read().unwrap() {
+                        event_tx.send(InputEvent::Input(key)).unwrap();
+                    }
                 }
+                event_tx.send(InputEvent::Tick).unwrap();
             }
-            event_tx.send(InputEvent::Tick).unwrap();
         });
 
         Events { rx, _tx: tx }

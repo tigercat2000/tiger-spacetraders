@@ -1,14 +1,11 @@
 use eyre::Result;
-use std::{cell::RefCell, rc::Rc};
+use std::sync::Arc;
 use tiger_spacetraders::{app::App, start_ui};
 
-fn main() -> Result<()> {
-    // let mut config = Configuration {
-    //     user_agent: Some("TigerSpacetraders/1.0.0/rust".to_owned()),
-    //     ..Default::default()
-    // };
+#[tokio::main]
+async fn main() -> Result<()> {
+    let app = Arc::new(tokio::sync::Mutex::new(App::new()));
 
-    let app = Rc::new(RefCell::new(App::new()));
-    start_ui(app)?;
+    start_ui(app).await?;
     Ok(())
 }

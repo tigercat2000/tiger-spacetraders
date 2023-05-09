@@ -4,7 +4,8 @@ use crossterm::{
     terminal::{EnterAlternateScreen, LeaveAlternateScreen},
 };
 use eyre::Result;
-use std::{cell::RefCell, rc::Rc, time::Duration};
+use std::{sync::Arc, time::Duration};
+use tokio::sync::Mutex;
 use tui::{backend::CrosstermBackend, Terminal};
 
 use crate::app::{
@@ -14,7 +15,7 @@ use crate::app::{
 
 pub mod app;
 
-pub fn start_ui(app: Rc<RefCell<App>>) -> Result<()> {
+pub async fn start_ui(app: Arc<Mutex<App>>) -> Result<()> {
     crossterm::terminal::enable_raw_mode()?;
 
     let mut stdout = std::io::stdout();
@@ -26,7 +27,8 @@ pub fn start_ui(app: Rc<RefCell<App>>) -> Result<()> {
     let events = Events::new(tick_rate);
 
     loop {
-        let app = app.borrow_mut();
+        let app = app.lock().await;
+
         // render
         terminal.draw(|rect| ui::draw(rect, &app))?;
         // handle inputs
