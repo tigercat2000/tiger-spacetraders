@@ -5,19 +5,14 @@ use crossterm::{
 };
 use eyre::Result;
 use std::{cell::RefCell, rc::Rc, time::Duration};
-use tui::{
-    backend::CrosstermBackend,
-    widgets::{Block, Borders},
-    Terminal,
+use tui::{backend::CrosstermBackend, Terminal};
+
+use crate::app::{
+    input::{Events, InputEvent},
+    ui, App, AppReturn,
 };
 
-pub struct App;
-
-impl App {
-    pub fn new() -> Self {
-        Self
-    }
-}
+pub mod app;
 
 pub fn start_ui(app: Rc<RefCell<App>>) -> Result<()> {
     crossterm::terminal::enable_raw_mode()?;
@@ -27,24 +22,23 @@ pub fn start_ui(app: Rc<RefCell<App>>) -> Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    // loop {
-    //     let app = app.borrow();
-    //     // render
-    //     terminal.draw(|rect| {
-    //         let size = rect.size();
-    //         let block = Block::default().title("Block").borders(Borders::ALL);
-    //         rect.render_widget(block, size);
-    //     })?;
-    //     // TODO handle inputs here
-    // }
+    let tick_rate = Duration::from_millis(200);
+    let events = Events::new(tick_rate);
 
-    terminal.draw(|rect| {
-        let size = rect.size();
-        let block = Block::default().title("Block").borders(Borders::ALL);
-        rect.render_widget(block, size);
-    })?;
+    loop {
+        let app = app.borrow_mut();
+        // render
+        terminal.draw(|rect| ui::draw(rect, &app))?;
+        // handle inputs
+        let result = match events.next()? {
+            InputEvent::Input(key) => app.do_action(key),
+            InputEvent::Tick => app.update_on_tick(),
+        };
 
-    std::thread::sleep(Duration::from_millis(5000));
+        if result == AppReturn::Quit {
+            break;
+        }
+    }
 
     // Restore terminal and close application
     crossterm::terminal::disable_raw_mode()?;

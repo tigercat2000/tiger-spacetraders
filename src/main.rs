@@ -1,6 +1,6 @@
 use eyre::Result;
 use std::{cell::RefCell, rc::Rc};
-use tiger_spacetraders::{start_ui, App};
+use tiger_spacetraders::{app::App, start_ui};
 
 fn main() -> Result<()> {
     // let mut config = Configuration {
