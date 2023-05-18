@@ -5,5 +5,5 @@ pub struct AsyncMessage {
 
 #[derive(Clone, Debug)]
 pub enum AsyncMessageType {
-    Nothing,
+    Register(String),
 }
