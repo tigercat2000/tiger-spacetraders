@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use cursive::{
-    theme::{BaseColor, BorderStyle, Color, PaletteColor},
+    theme::{BaseColor, BorderStyle, Color, PaletteColor, Style},
     view::{Nameable, Resizable},
     views::{Dialog, LinearLayout, TextView},
     Cursive, CursiveRunnable,
@@ -67,9 +67,13 @@ fn event_loop(mut siv: CursiveRunnable, mut rx_frontend: UnboundedReceiver<Front
                 runner.add_layer(
                     Dialog::new().title("FATAL ERROR").content(
                         LinearLayout::horizontal()
-                            .child(TextView::new("ERROR: Backend crashed, shutting down in"))
+                            .child(
+                                TextView::new("ERROR: Backend crashed, shutting down in")
+                                    .style(Style::highlight()),
+                            )
                             .child(
                                 TextView::new("5s")
+                                    .style(Style::highlight())
                                     .h_align(cursive::align::HAlign::Right)
                                     .with_name("time")
                                     .min_width(3),
