@@ -1,18 +1,39 @@
-use cursive::theme::{BaseColor, BorderStyle, Color, PaletteColor};
-use eyre::Result;
+use std::time::{Duration, Instant};
 
-mod async_message;
-mod sdk_layer;
+use cursive::{
+    theme::{BaseColor, BorderStyle, Color, PaletteColor},
+    view::{Nameable, Resizable},
+    views::{Dialog, LinearLayout, TextView},
+    Cursive, CursiveRunnable,
+};
+use eyre::Result;
+use tokio::sync::mpsc::{error::TryRecvError, UnboundedReceiver};
+
+use crate::{backend_thread::backend, messaging::FrontendMessage};
+
+mod backend_thread;
+mod messaging;
 mod views;
 
 fn main() -> Result<()> {
+    let (tx_backend, rx_backend) = tokio::sync::mpsc::unbounded_channel();
+    let (tx_frontend, rx_frontend) = tokio::sync::mpsc::unbounded_channel();
+
+    std::thread::spawn(move || {
+        backend(rx_backend, tx_frontend);
+    });
+
     let mut siv = cursive::default();
+    setup_theme(&mut siv);
 
-    let (async_tx, async_rx) = tokio::sync::mpsc::unbounded_channel();
+    views::main_menu::main_menu(&mut siv, tx_backend);
 
-    let tokio_siv_cb = siv.cb_sink().clone();
-    std::thread::spawn(move || sdk_layer::sdk_layer(tokio_siv_cb, async_rx));
+    event_loop(siv, rx_frontend);
 
+    Ok(())
+}
+
+fn setup_theme(siv: &mut Cursive) {
     let mut theme = siv.current_theme().clone();
     theme.shadow = false;
     theme.borders = BorderStyle::Simple;
@@ -25,10 +46,54 @@ fn main() -> Result<()> {
     theme.palette[PaletteColor::Highlight] = Color::Dark(BaseColor::Red);
 
     siv.set_theme(theme);
+}
 
-    views::login::show_login(&mut siv, async_tx);
+fn event_loop(mut siv: CursiveRunnable, mut rx_frontend: UnboundedReceiver<FrontendMessage>) {
+    let mut runner = siv.runner();
 
-    siv.run();
+    while runner.is_running() {
+        runner.step();
 
-    Ok(())
+        match rx_frontend.try_recv() {
+            Ok(message) => match message {
+                FrontendMessage::Noop => {}
+                FrontendMessage::Refresh => runner.refresh(),
+                FrontendMessage::RegistrationDone(_) => todo!(),
+            },
+            Err(TryRecvError::Empty) => {}
+            Err(TryRecvError::Disconnected) => {
+                runner.add_active_screen();
+
+                runner.add_layer(
+                    Dialog::new().title("FATAL ERROR").content(
+                        LinearLayout::horizontal()
+                            .child(TextView::new("ERROR: Backend crashed, shutting down in"))
+                            .child(
+                                TextView::new("5s")
+                                    .h_align(cursive::align::HAlign::Right)
+                                    .with_name("time")
+                                    .min_width(3),
+                            ),
+                    ),
+                );
+
+                runner.refresh();
+
+                let start = Instant::now();
+
+                // Keep it running until
+                while runner.is_running() && start.elapsed() < Duration::from_secs(5) {
+                    let seconds = start.elapsed();
+                    let time = Duration::from_secs(5).saturating_sub(seconds);
+                    runner.call_on_name("time", |view: &mut TextView| {
+                        view.set_content(format!("{}s", time.as_secs()))
+                    });
+                    runner.refresh();
+                    runner.step();
+                }
+
+                runner.quit();
+            }
+        }
+    }
 }
