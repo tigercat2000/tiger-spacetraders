@@ -1,13 +1,19 @@
+use spacetraders_sdk::models::{register_request::Faction, Register201ResponseData};
+
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum BackendMessage {
-    Register(String),
+    Register(String, Faction),
     Quit,
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum FrontendMessage {
-    Noop,
     Refresh,
+    Quit,
     /// Contains the token
-    RegistrationDone(String),
+    RegistrationDone(Box<Register201ResponseData>),
+    /// Contains the error message
+    RegistrationFailed(String),
 }
