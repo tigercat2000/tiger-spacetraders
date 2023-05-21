@@ -1,5 +1,5 @@
 use crate::messaging::BackendMessage;
-use crate::views::register::register;
+use crate::views::{login::login, register::register};
 use cursive::{
     align::HAlign,
     event,
@@ -24,12 +24,16 @@ pub fn main_menu(siv: &mut Cursive, tx_backend: UnboundedSender<BackendMessage>)
         Dialog::new().title("SpaceTraders").content(
             SelectView::new()
                 .h_align(HAlign::Center)
+                .item_str("Login")
                 .item_str("Register")
-                .item_str("Login with Token")
                 .item_str("Quit")
                 .on_submit(move |siv, s: &str| match s {
-                    "Register" => register(siv, tx_backend.clone()),
-                    "Login with Token" => {}
+                    "Register" => {
+                        register(siv, tx_backend.clone());
+                    }
+                    "Login" => {
+                        login(siv, tx_backend.clone());
+                    }
                     "Quit" => {
                         tx_backend.send(BackendMessage::Quit).unwrap();
                     }

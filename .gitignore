@@ -1,4 +1,7 @@
 /target
 
+*.log
+recent.toml
+
 # Generated
 spacetraders-sdk/

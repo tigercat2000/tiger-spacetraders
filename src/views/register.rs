@@ -61,7 +61,7 @@ pub fn register_error(siv: &mut Cursive, error: String) {
 pub fn register_success(siv: &mut Cursive, data: Box<Register201ResponseData>) {
     std::fs::write("./debug.log", format!("{:#?}", data));
 
-    // siv.pop_layer();
+    siv.pop_layer();
     // siv.add_layer(Dialog::info("Your token"));
 }
 

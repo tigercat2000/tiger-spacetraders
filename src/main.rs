@@ -10,12 +10,15 @@ use cursive::{
     Cursive, CursiveRunnable, CursiveRunner,
 };
 use eyre::Result;
-use tokio::sync::mpsc::{error::TryRecvError, UnboundedReceiver};
+use tokio::sync::mpsc::{error::TryRecvError, UnboundedReceiver, UnboundedSender};
 
 use crate::{
     backend_thread::backend,
-    messaging::FrontendMessage,
-    views::register::{register_error, register_success},
+    messaging::{BackendMessage, FrontendMessage},
+    views::{
+        game::main_game_screen,
+        register::{register_error, register_success},
+    },
 };
 
 mod backend_thread;
@@ -33,9 +36,9 @@ fn main() -> Result<()> {
     let mut siv = cursive::default();
     setup_theme(&mut siv);
 
-    views::main_menu::main_menu(&mut siv, tx_backend);
+    views::main_menu::main_menu(&mut siv, tx_backend.clone());
 
-    event_loop(siv, rx_frontend);
+    event_loop(siv, rx_frontend, tx_backend);
 
     Ok(())
 }
@@ -55,8 +58,14 @@ fn setup_theme(siv: &mut Cursive) {
     siv.set_theme(theme);
 }
 
-fn event_loop(mut siv: CursiveRunnable, mut rx_frontend: UnboundedReceiver<FrontendMessage>) {
+fn event_loop(
+    mut siv: CursiveRunnable,
+    mut rx_frontend: UnboundedReceiver<FrontendMessage>,
+    tx_backend: UnboundedSender<BackendMessage>,
+) {
     let mut runner = siv.runner();
+
+    runner.set_autorefresh(true);
 
     while runner.is_running() {
         runner.step();
@@ -74,8 +83,16 @@ fn event_loop(mut siv: CursiveRunnable, mut rx_frontend: UnboundedReceiver<Front
                     FrontendMessage::RegistrationFailed(error) => {
                         register_error(runner.deref_mut(), error)
                     }
+                    FrontendMessage::LoggedIn(data) => {
+                        main_game_screen(runner.deref_mut(), tx_backend.clone(), *data);
+                    }
+                    FrontendMessage::LoginFailed(error) => {
+                        runner
+                            .deref_mut()
+                            .add_layer(Dialog::info(format!("err {}", error)));
+                    }
                 };
-                runner.refresh();
+                // runner.refresh();
             }
             Err(TryRecvError::Empty) => {}
             Err(TryRecvError::Disconnected) => {
@@ -105,8 +122,6 @@ fn backend_crash(runner: &mut CursiveRunner<&mut Cursive>) {
         ),
     );
 
-    runner.refresh();
-
     let start = Instant::now();
 
     // Keep it running until
@@ -116,7 +131,7 @@ fn backend_crash(runner: &mut CursiveRunner<&mut Cursive>) {
         runner.call_on_name("time", |view: &mut TextView| {
             view.set_content(format!("{}s", time.as_secs()))
         });
-        runner.refresh();
+        // runner.refresh();
         runner.step();
     }
 

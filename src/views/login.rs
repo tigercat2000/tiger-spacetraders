@@ -1,95 +1,70 @@
-// use cursive::{
-//     theme::Style,
-//     utils::span::SpannedString,
-//     view::{Nameable, Resizable},
-//     views::{Dialog, EditView, ListView, ProgressBar, SelectView},
-//     Cursive,
-// };
-// use tokio::sync::mpsc::UnboundedSender;
+use cursive::{
+    view::{Nameable, Resizable},
+    views::{Dialog, EditView, ListView, SelectView},
+    Cursive,
+};
+use tokio::sync::mpsc::UnboundedSender;
 
-// use crate::async_message::{AsyncMessage, AsyncMessageType};
+use crate::{backend_thread::RecentLogins, messaging::BackendMessage};
 
-// pub fn show_login(siv: &mut Cursive, async_tx: UnboundedSender<AsyncMessage>) {
-//     siv.add_layer(
-//         Dialog::new().title("SpaceTraders").content(
-//             SelectView::new()
-//                 .item_str("Register")
-//                 .item_str("Login with Token")
-//                 .item_str("Quit")
-//                 .on_submit(move |siv, selection: &str| match selection {
-//                     "Register" => {
-//                         registration(siv, async_tx.clone());
-//                     }
-//                     "Login with Token" => {
-//                         token_login(siv);
-//                     }
-//                     "Quit" => siv.quit(),
-//                     _ => unreachable!("No such item"),
-//                 }),
-//         ),
-//     );
-// }
+pub fn login(siv: &mut Cursive, tx_backend: UnboundedSender<BackendMessage>) {
+    let logins = match std::fs::read_to_string("recent.toml") {
+        Ok(s) => toml::from_str(&s).unwrap(),
+        Err(_) => RecentLogins::default(),
+    };
 
-// fn registration(siv: &mut Cursive, async_tx: UnboundedSender<AsyncMessage>) {
-//     let async_tx_one = async_tx.clone();
-//     let async_tx_two = async_tx;
+    if !logins.logins.is_empty() {
+        let mut list = SelectView::new();
 
-//     siv.add_layer(
-//         Dialog::new()
-//             .title("SpaceTraders Registration")
-//             .content(
-//                 ListView::new().child(
-//                     "Call Sign",
-//                     EditView::new()
-//                         .on_submit(move |siv, cs| register(siv, cs, async_tx_one.clone()))
-//                         .on_edit_mut(|siv, content, _| {
-//                             siv.call_on_name("csign", |csign: &mut EditView| {
-//                                 csign.set_content(content.to_ascii_uppercase())
-//                             });
-//                         })
-//                         .max_content_width(14)
-//                         .with_name("csign")
-//                         .min_width(15)
-//                         .max_width(15),
-//                 ),
-//             )
-//             .button("Back", |siv| {
-//                 siv.pop_layer();
-//             })
-//             .button("Register", move |siv| {
-//                 let name = siv
-//                     .call_on_name("csign", |view: &mut EditView| view.get_content())
-//                     .unwrap();
+        for key in logins.logins.keys() {
+            list.add_item_str(key);
+        }
 
-//                 register(siv, name.as_str(), async_tx_two.clone());
-//             }),
-//     );
-// }
+        list.add_item_str("-- Login With Token");
 
-// fn register(siv: &mut Cursive, callsign: &str, async_tx: UnboundedSender<AsyncMessage>) {
-//     let len = callsign.chars().count();
+        list.set_on_submit(move |siv, sel: &String| match sel.as_str() {
+            "-- Login With Token" => {
+                siv.pop_layer();
+                show_token_input(siv, tx_backend.clone());
+            }
+            other => {
+                let token = logins.logins.get(other).unwrap();
+                try_login(siv, tx_backend.clone(), token.clone());
+            }
+        });
 
-//     if !(3..=14).contains(&len) {
-//         siv.add_layer(Dialog::info(SpannedString::styled(
-//             "Error: Callsign must be 3-14 characters",
-//             Style::highlight(),
-//         )));
-//         return;
-//     }
+        siv.add_layer(Dialog::new().title("SpaceTraders Login").content(list))
+    } else {
+        show_token_input(siv, tx_backend);
+    }
+}
 
-//     async_tx
-//         .send(AsyncMessage {
-//             typ: AsyncMessageType::Register(callsign.into()),
-//         })
-//         .unwrap();
-// }
+fn show_token_input(siv: &mut Cursive, tx_backend: UnboundedSender<BackendMessage>) {
+    siv.add_layer(
+        Dialog::new()
+            .title("SpaceTraders Login")
+            .content(
+                ListView::new().child(
+                    "Token",
+                    EditView::new()
+                        .with_name("token")
+                        .min_width(60)
+                        .max_width(60),
+                ),
+            )
+            .button("Back", |siv| {
+                siv.pop_layer();
+            })
+            .button("Login", move |siv| {
+                let token = siv
+                    .call_on_name("token", |view: &mut EditView| view.get_content())
+                    .unwrap();
+                try_login(siv, tx_backend.clone(), (*token).clone());
+            }),
+    )
+}
 
-// fn token_login(siv: &mut Cursive) {
-//     siv.add_layer(
-//         Dialog::new()
-//             .title("SpaceTraders Token Login")
-//             .button("Back", |siv| {
-//                 siv.pop_layer();
-//             }),
-//     );
-// }
+pub fn try_login(siv: &mut Cursive, tx_backend: UnboundedSender<BackendMessage>, token: String) {
+    tx_backend.send(BackendMessage::TokenLogin(token)).unwrap();
+    siv.add_layer(Dialog::info("Logging in..."))
+}
